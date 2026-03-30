@@ -26,6 +26,9 @@ export async function GET(request: NextRequest) {
     }
 
     const weather = await getWeatherForPeriod(lat, lng, areaCode, startDate, endDate);
+    if (weather.length === 0) {
+      return NextResponse.json({ weather: [], notice: '기상청 API에서 날씨 데이터를 불러올 수 없습니다.' });
+    }
     return NextResponse.json({ weather });
   } catch (error) {
     console.error('Weather API error:', error);

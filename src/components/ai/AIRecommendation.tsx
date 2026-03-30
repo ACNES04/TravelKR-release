@@ -84,20 +84,76 @@ export default function AIRecommendation({
     }
   }
 
-  // 줄바꿈을 HTML로 변환
+  // 마크다운 텍스트를 HTML로 변환
   const formattedText = recommendation
     .split('\n')
-    .map((line, i) => {
-      if (line.startsWith('📅') || /^\d+일차/.test(line)) {
-        return `<div class="mt-6 mb-3 pb-2 border-b-2 border-blue-200 flex items-center gap-2"><svg class="w-5 h-5 text-blue-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="text-lg font-bold text-blue-700">${line.replace(/^📅\s*/, '')}</span></div>`;
+    .map((line) => {
+      // 빈 줄 → 여백
+      if (line.trim() === '') {
+        return '<div class="h-2"></div>';
       }
-      if (/^\d{2}:\d{2}/.test(line)) {
-        return `<div class="font-semibold text-gray-900 mt-3">${line}</div>`;
+
+      // 수평선
+      if (/^[-=]{3,}$/.test(line.trim())) {
+        return '<hr class="my-4 border-gray-200" />';
       }
-      if (line.trim().startsWith('→')) {
-        return `<div class="text-sm text-gray-600 ml-6">${line}</div>`;
+
+      // 인라인 마크다운 처리 (bold, italic, code)
+      const inlineMd = (text: string) =>
+        text
+          .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/`(.+?)`/g, '<code class="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs">$1</code>');
+
+      // 일차 헤더 (## 1일차, 1일차, Day 1, 📅 등)
+      if (/^#{1,3}\s/.test(line) || /^\d+일차/.test(line.trim()) || line.trim().startsWith('📅')) {
+        const headerText = line.replace(/^#{1,3}\s*/, '').replace(/^📅\s*/, '').trim();
+        return `<div class="mt-6 mb-3 pb-2 border-b-2 border-blue-200">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="text-base font-bold text-blue-700">${inlineMd(headerText)}</span>
+          </div>
+        </div>`;
       }
-      return `<div class="text-sm text-gray-700">${line}</div>`;
+
+      // 시간대 항목 (09:00, 10:30 - 장소명 등)
+      const timeMatch = line.match(/^(\d{1,2}:\d{2})\s*[-–]\s*(.*)/);
+      if (timeMatch) {
+        return `<div class="flex items-start gap-3 mt-3 ml-1">
+          <span class="inline-flex items-center justify-center bg-blue-50 text-blue-700 text-xs font-bold rounded-lg px-2 py-1 flex-shrink-0 min-w-[52px]">${timeMatch[1]}</span>
+          <span class="text-sm font-semibold text-gray-800 pt-0.5">${inlineMd(timeMatch[2])}</span>
+        </div>`;
+      }
+
+      // 화살표 안내 (→, >, -)
+      if (line.trim().startsWith('→') || line.trim().startsWith('>')) {
+        const text = line.trim().replace(/^[→>]\s*/, '');
+        return `<div class="flex items-start gap-2 ml-14 mt-1">
+          <svg class="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          <span class="text-xs text-gray-500 leading-relaxed">${inlineMd(text)}</span>
+        </div>`;
+      }
+
+      // 리스트 항목 (- , • , * )
+      if (/^\s*[-•*]\s/.test(line)) {
+        const text = line.trim().replace(/^[-•*]\s*/, '');
+        return `<div class="flex items-start gap-2 ml-4 mt-1">
+          <span class="w-1.5 h-1.5 bg-gray-400 rounded-full mt-1.5 flex-shrink-0"></span>
+          <span class="text-sm text-gray-700 leading-relaxed">${inlineMd(text)}</span>
+        </div>`;
+      }
+
+      // 숫자 리스트 (1. , 2. 등)
+      const numMatch = line.match(/^\s*(\d+)\.\s+(.*)/);
+      if (numMatch) {
+        return `<div class="flex items-start gap-2 ml-4 mt-1.5">
+          <span class="inline-flex items-center justify-center bg-gray-100 text-gray-600 text-xs font-medium rounded-full w-5 h-5 flex-shrink-0">${numMatch[1]}</span>
+          <span class="text-sm text-gray-700 leading-relaxed">${inlineMd(numMatch[2])}</span>
+        </div>`;
+      }
+
+      // 일반 텍스트
+      return `<div class="text-sm text-gray-700 leading-relaxed mt-1">${inlineMd(line)}</div>`;
     })
     .join('');
 
@@ -160,11 +216,11 @@ export default function AIRecommendation({
       {(recommendation || loading) && (
         <div
           ref={contentRef}
-          className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 max-h-[600px] overflow-y-auto"
+          className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 max-h-[600px] overflow-y-auto"
         >
           <div
             dangerouslySetInnerHTML={{ __html: formattedText }}
-            className="prose prose-sm max-w-none"
+            className="max-w-none [&_hr]:my-4"
           />
           {loading && (
             <div className="flex items-center gap-2 mt-4 text-gray-400">

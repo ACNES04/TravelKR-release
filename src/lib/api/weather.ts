@@ -178,8 +178,8 @@ export async function getWeatherForPeriod(
             });
             continue;
           }
-        } catch {
-          // 중기예보 실패 시 월평균으로 폴백
+        } catch (midErr) {
+          console.error('중기예보 실패:', midErr);
         }
       }
 
@@ -195,8 +195,8 @@ export async function getWeatherForPeriod(
         ptyLabel: '없음',
       });
     }
-  } catch {
-    // 전체 실패 시 빈 배열
+  } catch (err) {
+    console.error('Weather API 전체 실패:', err);
     return [];
   }
 

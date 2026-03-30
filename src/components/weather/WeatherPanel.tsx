@@ -52,6 +52,7 @@ export default function WeatherPanel({
   const [weather, setWeather] = useState<DailyWeather[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function fetchWeather() {
     setLoading(true);
@@ -68,6 +69,7 @@ export default function WeatherPanel({
       if (!res.ok) throw new Error('날씨 데이터를 불러올 수 없습니다.');
       const data = await res.json();
       setWeather(data.weather || []);
+      if (data.notice) setNotice(data.notice);
     } catch (err) {
       setError(err instanceof Error ? err.message : '날씨 조회 실패');
     } finally {
@@ -145,8 +147,22 @@ export default function WeatherPanel({
         })}
 
         {weather.length === 0 && (
-          <div className="w-full text-center py-6 text-gray-400 text-sm">
-            날씨 데이터가 없습니다
+          <div className="w-full text-center py-8">
+            <div className="flex justify-center mb-3">
+              <CloudyIcon className="w-12 h-12 text-gray-300" />
+            </div>
+            <p className="text-gray-500 text-sm font-medium mb-1">
+              {notice || '날씨 데이터를 불러올 수 없습니다'}
+            </p>
+            <p className="text-gray-400 text-xs">
+              기상청 API 서버 상태에 따라 일시적으로 제공되지 않을 수 있습니다
+            </p>
+            <button
+              onClick={fetchWeather}
+              className="mt-3 px-4 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition-colors"
+            >
+              다시 시도
+            </button>
           </div>
         )}
       </div>
