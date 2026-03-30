@@ -142,8 +142,8 @@ export async function generateRecommendation(data: GeminiRequest): Promise<Reada
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
-      // 청크 단위로 전송
-      const chunks = text.match(/.{1,50}/g) || [text];
+      // 청크 단위로 전송 ([\s\S]로 줄바꿈 포함)
+      const chunks = text.match(/[\s\S]{1,50}/g) || [text];
       let i = 0;
       const interval = setInterval(() => {
         if (i < chunks.length) {
