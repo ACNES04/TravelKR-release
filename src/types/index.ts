@@ -37,6 +37,21 @@ export const TRAVEL_STYLES: TravelStyle[] = [
   '축제',
 ];
 
+export type PlanningStage =
+  | 'explore'    // 탐색 단계
+  | 'place'      // 장소 확정
+  | 'itinerary'  // 일정 수립
+  | 'booking'    // 예약 완료
+  | 'final';     // 마무리 점검
+
+export const PLANNING_STAGES: { id: PlanningStage; label: string; description: string }[] = [
+  { id: 'explore',   label: '아직 탐색 중',        description: '여행지와 날짜가 아직 미정이에요' },
+  { id: 'place',     label: '장소만 정했어요',      description: '일정과 세부 계획을 세워볼까요?' },
+  { id: 'itinerary', label: '일정 짜는 중',         description: '동선과 장소를 최적화해 볼게요' },
+  { id: 'booking',   label: '예약까지 했어요',      description: '현지 액티비티를 추천해 드릴게요' },
+  { id: 'final',     label: '출발 전 마무리',       description: '최종 체크리스트를 확인해 보세요' },
+];
+
 export interface PlaceMarker {
   id: string;
   title: string;

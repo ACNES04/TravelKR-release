@@ -7,8 +7,9 @@ import DatePicker from '@/components/search/DatePicker';
 import StyleTags from '@/components/search/StyleTags';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import type { TravelStyle } from '@/types';
+import type { TravelStyle, PlanningStage } from '@/types';
 import { getAreaByName } from '@/lib/utils/areaCode';
+import PlanningStageSelector from '@/components/search/PlanningStageSelector';
 import { v4 as uuidv4 } from 'uuid';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 import {
@@ -31,6 +32,7 @@ export default function Home() {
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
   const [styles, setStyles] = useState<TravelStyle[]>([]);
+  const [planningStage, setPlanningStage] = useState<PlanningStage | null>(null);
   const [loading, setLoading] = useState(false);
 
   function handleCreatePlan() {
@@ -51,6 +53,7 @@ export default function Home() {
       adults: String(adults),
       children: String(children),
       styles: styles.join(','),
+      ...(planningStage ? { stage: planningStage } : {}),
     });
 
     const planData = {
@@ -64,6 +67,7 @@ export default function Home() {
       adults,
       children,
       styles,
+      planningStage,
     };
     localStorage.setItem(`plan-${planId}`, JSON.stringify(planData));
 
@@ -299,6 +303,9 @@ export default function Home() {
 
               {/* 스타일 */}
               <StyleTags selected={styles} onChange={setStyles} />
+
+              {/* 여행 준비 단계 */}
+              <PlanningStageSelector selected={planningStage} onChange={setPlanningStage} />
 
               {/* 여행 계획 만들기 */}
               <button
