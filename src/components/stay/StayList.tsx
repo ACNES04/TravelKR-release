@@ -73,7 +73,14 @@ export default function StayList({ areaCode, sigunguCode, onStayClick }: StayLis
         </div>
       </div>
 
-      {loading && <SkeletonList count={3} />}
+      {loading && (
+        <div className="space-y-3">
+          <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-xs font-semibold text-blue-700">
+            로딩중...
+          </div>
+          <SkeletonList count={3} />
+        </div>
+      )}
       {error && <ErrorFallback message={error} onRetry={fetchStays} />}
       {!loading && !error && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

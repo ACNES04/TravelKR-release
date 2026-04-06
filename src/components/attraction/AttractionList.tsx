@@ -8,7 +8,7 @@ import { SkeletonList } from '@/components/common/Skeleton';
 import ErrorFallback from '@/components/common/ErrorFallback';
 import { LandmarkIcon } from '@/components/icons/Icons';
 
-const ATTRACTION_PAGE_SIZE = 50;
+const ATTRACTION_PAGE_SIZE = 1000;
 
 interface AttractionListProps {
   areaCode: string;
@@ -91,7 +91,14 @@ export default function AttractionList({
       <CategoryTabs selected={contentTypeId} onChange={setContentTypeId} />
 
       <div className="mt-4">
-        {loading && <SkeletonList count={4} />}
+        {loading && (
+          <div className="space-y-3">
+            <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-xs font-semibold text-blue-700">
+              로딩중...
+            </div>
+            <SkeletonList count={4} />
+          </div>
+        )}
         {error && <ErrorFallback message={error} onRetry={fetchItems} />}
         {!loading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
