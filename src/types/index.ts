@@ -57,7 +57,7 @@ export interface PlaceMarker {
   title: string;
   lat: number;
   lng: number;
-  category: 'stay' | 'attraction' | 'food' | 'festival' | 'culture';
+  category: 'stay' | 'attraction' | 'food' | 'festival' | 'culture' | 'departure';
   image?: string;
   address?: string;
   tel?: string;
@@ -70,6 +70,7 @@ export const MARKER_COLORS: Record<PlaceMarker['category'], string> = {
   food: '#22C55E',       // 초록
   festival: '#EAB308',   // 노랑
   culture: '#8B5CF6',    // 보라
+  departure: '#111827',  // 검정
 };
 
 export const CATEGORY_LABELS: Record<PlaceMarker['category'], string> = {
@@ -78,6 +79,7 @@ export const CATEGORY_LABELS: Record<PlaceMarker['category'], string> = {
   food: '맛집',
   festival: '축제/행사',
   culture: '문화시설',
+  departure: '출발지',
 };
 
 export interface SearchParams {

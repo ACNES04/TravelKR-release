@@ -108,6 +108,9 @@ export default function PlanPage() {
   const [markers, setMarkers] = useState<PlaceMarker[]>([]);
   const [selectedMarker, setSelectedMarker] = useState<PlaceMarker | null>(null);
   const [mapCenter, setMapCenter] = useState({ lat, lng });
+  const [departure, setDeparture] = useState<PlaceMarker | null>(null);
+  const [departureQuery, setDepartureQuery] = useState('');
+  const [departureSearching, setDepartureSearching] = useState(false);
   const [routePath, setRoutePath] = useState<{ lat: number; lng: number }[]>([]);
   const [routeInfo, setRouteInfo] = useState<{
     distance: number;
@@ -178,6 +181,40 @@ export default function PlanPage() {
   const handleMarkerClick = useCallback((marker: PlaceMarker) => {
     setSelectedMarker(marker);
   }, []);
+
+  // 출발지 검색 (카카오맵 SDK Places 키워드 검색)
+  async function searchDeparture() {
+    if (!departureQuery.trim()) return;
+    if (!window.kakao?.maps?.services) {
+      alert('지도 SDK가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    setDepartureSearching(true);
+    const ps = new window.kakao.maps.services.Places();
+    ps.keywordSearch(departureQuery.trim(), (data: { place_name: string; y: string; x: string; address_name: string }[], status: string) => {
+      setDepartureSearching(false);
+      if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
+        const place = data[0];
+        const dep: PlaceMarker = {
+          id: 'departure',
+          title: place.place_name,
+          lat: parseFloat(place.y),
+          lng: parseFloat(place.x),
+          category: 'departure',
+          address: place.address_name,
+        };
+        setDeparture(dep);
+        setMapCenter({ lat: dep.lat, lng: dep.lng });
+      } else {
+        alert('검색 결과가 없습니다. 더 구체적인 주소를 입력해 주세요.');
+      }
+    });
+  }
+
+  function clearDeparture() {
+    setDeparture(null);
+    setDepartureQuery('');
+  }
 
   // 데이터 수집 (마커 + AI용)
   useEffect(() => {
@@ -275,8 +312,16 @@ export default function PlanPage() {
       ? selectedPlaces
       : markers.filter((m) => ['attraction', 'food', 'festival', 'culture'].includes(m.category)).slice(0, 8);
 
-    const optimized = optimizeMarkerOrderByDistance(routeSource, { lat, lng });
-    const routeMarkers = optimized.slice(0, 7); // 카카오 최대: 출발+5 경유지+도착 = 7
+    const originPt = departure ? { lat: departure.lat, lng: departure.lng } : { lat, lng };
+    const optimized = optimizeMarkerOrderByDistance(routeSource, originPt);
+
+    // 출발지가 있으면 맨 앞에 추가
+    let routeMarkers: PlaceMarker[];
+    if (departure) {
+      routeMarkers = [departure, ...optimized].slice(0, 7);
+    } else {
+      routeMarkers = optimized.slice(0, 7);
+    }
     if (routeMarkers.length < 2) return;
 
     setRouteLoading(true);
@@ -429,10 +474,42 @@ export default function PlanPage() {
         {/* 데스크톱: 좌우 분할 */}
         <div className="flex flex-col lg:flex-row h-[calc(100vh-60px)]">
           {/* 지도 영역 (좌측 50%) */}
-          <div className="w-full lg:w-1/2 h-[40vh] lg:h-full relative animate-fade-in">
+          <div className="w-full lg:w-1/2 h-[40vh] lg:h-full relative animate-fade-in flex flex-col">
+            {/* 출발지 검색 바 */}
+            <div className="bg-white border-b border-gray-200 px-3 py-2 flex items-center gap-2 flex-shrink-0">
+              {departure ? (
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">출</span>
+                  <span className="text-sm font-medium text-gray-800 truncate">{departure.title}</span>
+                  <span className="text-xs text-gray-400 truncate hidden sm:inline">{departure.address}</span>
+                  <button onClick={clearDeparture} className="ml-auto flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={(e) => { e.preventDefault(); searchDeparture(); }} className="flex items-center gap-2 flex-1">
+                  <span className="w-5 h-5 rounded-full bg-gray-300 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">출</span>
+                  <input
+                    type="text"
+                    value={departureQuery}
+                    onChange={(e) => setDepartureQuery(e.target.value)}
+                    placeholder="출발지 주소 또는 장소명 입력"
+                    className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400 text-gray-800 min-w-0"
+                  />
+                  <button
+                    type="submit"
+                    disabled={departureSearching || !departureQuery.trim()}
+                    className="flex-shrink-0 px-3 py-1 bg-gray-900 text-white text-xs font-semibold rounded-full hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                  >
+                    {departureSearching ? '검색 중...' : '설정'}
+                  </button>
+                </form>
+              )}
+            </div>
+            <div className="relative flex-1 min-h-0">
             <KakaoMap
               center={mapCenter}
-              markers={selectedPlaces.length > 0 ? selectedPlaces : markers}
+              markers={[...(departure ? [departure] : []), ...(selectedPlaces.length > 0 ? selectedPlaces : markers)]}
               routePath={routePath}
               routeOrderMap={routeOrderMap}
               onMarkerClick={handleMarkerClick}
@@ -440,7 +517,7 @@ export default function PlanPage() {
             />
             {/* 경로 정보 오버레이 */}
             {(routeInfo || routeLoading || !!routeError) && (
-              <div className="absolute bottom-4 left-4 right-4 animate-slide-in-bottom space-y-2">
+              <div className="absolute bottom-4 left-4 right-4 z-10 space-y-2">
                 {(routeInfo || routeLoading) && (
                   <RoutePolyline
                     routeInfo={routeInfo}
@@ -458,6 +535,7 @@ export default function PlanPage() {
                 )}
               </div>
             )}
+            </div>
           </div>
 
           {/* 패널 영역 (우측 50%) */}

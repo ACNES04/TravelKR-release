@@ -52,6 +52,7 @@ export default function KakaoMap({
     food: '#22C55E',
     festival: '#EAB308',
     culture: '#8B5CF6',
+    departure: '#111827',
   };
 
   const MARKER_SVG: Record<string, string> = {
@@ -60,6 +61,7 @@ export default function KakaoMap({
     food: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
     festival: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 11.3L2 22l10.7-3.79"/><path d="M22 2l-2.24.75a2.9 2.9 0 0 0-1.96 3.12L18.2 9a2.9 2.9 0 0 1-2.31 3.09l-3.15.53a2.9 2.9 0 0 0-2.31 3.09l.16 1.09"/><path d="M13 21l1.94-6.65a2.9 2.9 0 0 1 3.09-2.06l3.15.29"/></svg>',
     culture: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="8" cy="9" r="1.2" fill="white"/><circle cx="16" cy="9" r="1.2" fill="white"/><path d="M16 15c-.5 1-2 2-4 2s-3.5-1-4-2"/></svg>',
+    departure: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="white"/></svg>',
   };
 
   const PIN_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
