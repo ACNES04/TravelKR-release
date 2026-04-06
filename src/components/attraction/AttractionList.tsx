@@ -12,9 +12,19 @@ interface AttractionListProps {
   areaCode: string;
   sigunguCode?: string;
   onItemClick?: (item: AttractionItem) => void;
+  selectedIds?: string[];
+  onToggleSelect?: (item: AttractionItem) => void;
+  onClearSelected?: () => void;
 }
 
-export default function AttractionList({ areaCode, sigunguCode, onItemClick }: AttractionListProps) {
+export default function AttractionList({
+  areaCode,
+  sigunguCode,
+  onItemClick,
+  selectedIds = [],
+  onToggleSelect,
+  onClearSelected,
+}: AttractionListProps) {
   const [contentTypeId, setContentTypeId] = useState<ContentTypeId>('12');
   const [items, setItems] = useState<AttractionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +60,31 @@ export default function AttractionList({ areaCode, sigunguCode, onItemClick }: A
     <div>
       <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
         <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600"><LandmarkIcon className="w-4 h-4" /></div>
-        관광지 / 맛집
+        관광지 / 맛집 / 축제 / 문화시설
         {!loading && <span className="text-sm font-normal text-gray-400">({items.length})</span>}
+        {selectedIds.length > 0 && (
+          <span className="text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
+            선택 {selectedIds.length}
+          </span>
+        )}
       </h3>
+
+      <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 선택/해제되며, 선택 목록 기준으로 경로와 AI 일정이 최적화됩니다.</p>
+
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100">
+          <p className="text-xs text-blue-700">
+            선택한 장소를 기준으로 경로 계산과 AI 일정 추천이 최적화됩니다.
+          </p>
+          <button
+            onClick={onClearSelected}
+            className="text-xs font-semibold text-blue-700 hover:text-blue-800"
+            type="button"
+          >
+            전체 해제
+          </button>
+        </div>
+      )}
 
       <CategoryTabs selected={contentTypeId} onChange={setContentTypeId} />
 
@@ -65,7 +97,11 @@ export default function AttractionList({ areaCode, sigunguCode, onItemClick }: A
               <AttractionCard
                 key={item.contentid}
                 item={item}
-                onClick={() => onItemClick?.(item)}
+                selected={selectedIds.includes(item.contentid)}
+                onClick={() => {
+                  onToggleSelect?.(item);
+                  onItemClick?.(item);
+                }}
               />
             ))}
             {items.length === 0 && (

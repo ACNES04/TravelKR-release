@@ -27,6 +27,69 @@ const KakaoMap = dynamic(() => import('@/components/map/KakaoMap'), {
 
 type PanelTab = 'weather' | 'stay' | 'attraction' | 'ai';
 
+type SelectableCategory = Extract<PlaceMarker['category'], 'attraction' | 'food' | 'festival' | 'culture'>;
+
+function toSelectableMarker(item: AttractionItem): PlaceMarker {
+  const ctId = item.contenttypeid;
+  let category: SelectableCategory = 'attraction';
+  if (ctId === '39') category = 'food';
+  else if (ctId === '15') category = 'festival';
+  else if (ctId === '14') category = 'culture';
+
+  return {
+    id: item.contentid,
+    title: item.title,
+    lat: parseFloat(item.mapy),
+    lng: parseFloat(item.mapx),
+    category,
+    image: item.firstimage,
+    address: item.addr1,
+    tel: item.tel,
+  };
+}
+
+function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function optimizeMarkerOrderByDistance(markers: PlaceMarker[], start: { lat: number; lng: number }) {
+  if (markers.length <= 2) return markers;
+
+  const remaining = [...markers];
+  const ordered: PlaceMarker[] = [];
+  let current = start;
+
+  while (remaining.length > 0) {
+    let nearestIdx = 0;
+    let nearestDist = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const dist = distanceMeters(current, remaining[i]);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = i;
+      }
+    }
+
+    const [next] = remaining.splice(nearestIdx, 1);
+    ordered.push(next);
+    current = { lat: next.lat, lng: next.lng };
+  }
+
+  return ordered;
+}
+
 export default function PlanPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -59,6 +122,7 @@ export default function PlanPage() {
   const [collectedStays, setCollectedStays] = useState<{ title: string; address: string }[]>([]);
   const [collectedAttractions, setCollectedAttractions] = useState<{ title: string; address: string; category: string }[]>([]);
   const [collectedFoods, setCollectedFoods] = useState<{ title: string; address: string }[]>([]);
+  const [selectedPlaces, setSelectedPlaces] = useState<PlaceMarker[]>([]);
   const [collectedWeather, setCollectedWeather] = useState<{ date: string; skyLabel: string; tempMin: number | null; tempMax: number | null; pop: number }[]>([]);
 
   const dayCount = startDate && endDate ? getDaysBetween(startDate, endDate) : 0;
@@ -81,24 +145,24 @@ export default function PlanPage() {
 
   // 관광지/맛집 클릭 핸들러
   const handleAttractionClick = useCallback((item: AttractionItem) => {
-    const ctId = item.contenttypeid;
-    let category: PlaceMarker['category'] = 'attraction';
-    if (ctId === '39') category = 'food';
-    else if (ctId === '15') category = 'festival';
-    else if (ctId === '14') category = 'culture';
-
-    const marker: PlaceMarker = {
-      id: item.contentid,
-      title: item.title,
-      lat: parseFloat(item.mapy),
-      lng: parseFloat(item.mapx),
-      category,
-      image: item.firstimage,
-      address: item.addr1,
-      tel: item.tel,
-    };
+    const marker = toSelectableMarker(item);
     setSelectedMarker(marker);
     setMapCenter({ lat: marker.lat, lng: marker.lng });
+  }, []);
+
+  const toggleSelectedPlace = useCallback((item: AttractionItem) => {
+    const marker = toSelectableMarker(item);
+    setSelectedPlaces((prev) => {
+      const exists = prev.some((p) => p.id === marker.id);
+      if (exists) {
+        return prev.filter((p) => p.id !== marker.id);
+      }
+      return [...prev, marker];
+    });
+  }, []);
+
+  const clearSelectedPlaces = useCallback(() => {
+    setSelectedPlaces([]);
   }, []);
 
   // 지도 마커 클릭
@@ -134,53 +198,41 @@ export default function PlanPage() {
           setMarkers((prev) => [...prev.filter((m) => m.category !== 'stay'), ...stayMarkers]);
         }
 
-        // 관광지
-        const attrRes = await fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=12&numOfRows=15`);
-        if (attrRes.ok) {
-          const attrData = await attrRes.json();
-          const attrs = attrData.items || [];
-          setCollectedAttractions(
-            attrs.map((a: AttractionItem) => ({
-              title: a.title,
-              address: a.addr1,
-              category: CONTENT_TYPE_LABELS[a.contenttypeid as keyof typeof CONTENT_TYPE_LABELS] || '관광지',
-            }))
-          );
+        const [attrRes, cultureRes, festivalRes, foodRes] = await Promise.all([
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=12&numOfRows=15`),
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=14&numOfRows=15`),
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=15&numOfRows=15`),
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=39&numOfRows=15`),
+        ]);
 
-          const attrMarkers: PlaceMarker[] = attrs
-            .filter((a: AttractionItem) => a.mapx && a.mapy)
-            .map((a: AttractionItem) => ({
-              id: a.contentid,
-              title: a.title,
-              lat: parseFloat(a.mapy),
-              lng: parseFloat(a.mapx),
-              category: 'attraction' as const,
-              image: a.firstimage2,
-              address: a.addr1,
-            }));
-          setMarkers((prev) => [...prev.filter((m) => m.category !== 'attraction'), ...attrMarkers]);
-        }
+        const attrItems: AttractionItem[] = attrRes.ok ? (await attrRes.json()).items || [] : [];
+        const cultureItems: AttractionItem[] = cultureRes.ok ? (await cultureRes.json()).items || [] : [];
+        const festivalItems: AttractionItem[] = festivalRes.ok ? (await festivalRes.json()).items || [] : [];
+        const foodItems: AttractionItem[] = foodRes.ok ? (await foodRes.json()).items || [] : [];
 
-        // 맛집
-        const foodRes = await fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=39&numOfRows=15`);
-        if (foodRes.ok) {
-          const foodData = await foodRes.json();
-          const foods = foodData.items || [];
-          setCollectedFoods(foods.map((f: AttractionItem) => ({ title: f.title, address: f.addr1 })));
+        const allScheduleTargets = [...attrItems, ...cultureItems, ...festivalItems];
 
-          const foodMarkers: PlaceMarker[] = foods
-            .filter((f: AttractionItem) => f.mapx && f.mapy)
-            .map((f: AttractionItem) => ({
-              id: f.contentid,
-              title: f.title,
-              lat: parseFloat(f.mapy),
-              lng: parseFloat(f.mapx),
-              category: 'food' as const,
-              image: f.firstimage2,
-              address: f.addr1,
-            }));
-          setMarkers((prev) => [...prev.filter((m) => m.category !== 'food'), ...foodMarkers]);
-        }
+        setCollectedAttractions(
+          allScheduleTargets.map((a: AttractionItem) => ({
+            title: a.title,
+            address: a.addr1,
+            category: CONTENT_TYPE_LABELS[a.contenttypeid as keyof typeof CONTENT_TYPE_LABELS] || '관광지',
+          }))
+        );
+
+        setCollectedFoods(foodItems.map((f: AttractionItem) => ({ title: f.title, address: f.addr1 })));
+
+        const selectableMarkers: PlaceMarker[] = [...allScheduleTargets, ...foodItems]
+          .filter((a: AttractionItem) => a.mapx && a.mapy)
+          .map((a: AttractionItem) => ({
+            ...toSelectableMarker(a),
+            image: a.firstimage2,
+          }));
+
+        setMarkers((prev) => [
+          ...prev.filter((m) => !['attraction', 'food', 'festival', 'culture'].includes(m.category)),
+          ...selectableMarkers,
+        ]);
 
         // 날씨
         if (startDate && endDate) {
@@ -210,7 +262,12 @@ export default function PlanPage() {
 
   // 최적 루트 계산
   async function calculateRoute() {
-    const routeMarkers = markers.filter((m) => m.category === 'attraction' || m.category === 'food').slice(0, 5);
+    const routeSource = selectedPlaces.length > 0
+      ? selectedPlaces
+      : markers.filter((m) => ['attraction', 'food', 'festival', 'culture'].includes(m.category)).slice(0, 8);
+
+    const optimized = optimizeMarkerOrderByDistance(routeSource, { lat, lng });
+    const routeMarkers = optimized.slice(0, 5);
     if (routeMarkers.length < 2) return;
 
     setRouteLoading(true);
@@ -299,7 +356,7 @@ export default function PlanPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={calculateRoute}
-              disabled={routeLoading || markers.length < 2}
+              disabled={routeLoading || (selectedPlaces.length > 0 ? selectedPlaces.length < 2 : markers.length < 2)}
               className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
             >
               <MapIcon className="w-4 h-4" /> 경로 계산
@@ -399,6 +456,9 @@ export default function PlanPage() {
                 <AttractionList
                   areaCode={areaCode}
                   onItemClick={handleAttractionClick}
+                  selectedIds={selectedPlaces.map((p) => p.id)}
+                  onToggleSelect={toggleSelectedPlace}
+                  onClearSelected={clearSelectedPlaces}
                 />
               </div>
 
@@ -412,8 +472,29 @@ export default function PlanPage() {
                   children={children}
                   styles={styles}
                   stays={collectedStays}
-                  attractions={collectedAttractions}
-                  foods={collectedFoods}
+                  attractions={
+                    selectedPlaces.length > 0
+                      ? selectedPlaces
+                          .filter((p) => p.category !== 'food')
+                          .map((p) => ({
+                            title: p.title,
+                            address: p.address || '',
+                            category:
+                              p.category === 'festival'
+                                ? '축제/공연/행사'
+                                : p.category === 'culture'
+                                  ? '문화시설'
+                                  : '관광지',
+                          }))
+                      : collectedAttractions
+                  }
+                  foods={
+                    selectedPlaces.length > 0
+                      ? selectedPlaces
+                          .filter((p) => p.category === 'food')
+                          .map((p) => ({ title: p.title, address: p.address || '' }))
+                      : collectedFoods
+                  }
                   weather={collectedWeather}
                 />
               </div>
@@ -422,7 +503,7 @@ export default function PlanPage() {
               <div className="lg:hidden">
                 <button
                   onClick={calculateRoute}
-                  disabled={routeLoading || markers.length < 2}
+                  disabled={routeLoading || (selectedPlaces.length > 0 ? selectedPlaces.length < 2 : markers.length < 2)}
                   className="w-full py-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                 >
                   {routeLoading ? '경로 계산 중...' : <><MapIcon className="w-5 h-5" /> 최적 경로 계산</>}

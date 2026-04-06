@@ -6,15 +6,28 @@ import { PinIcon, PhoneIcon } from '@/components/icons/Icons';
 interface AttractionCardProps {
   item: AttractionItem;
   onClick?: (item: AttractionItem) => void;
+  selected?: boolean;
 }
 
-export default function AttractionCard({ item, onClick }: AttractionCardProps) {
+export default function AttractionCard({ item, onClick, selected = false }: AttractionCardProps) {
   return (
     <button
       onClick={() => onClick?.(item)}
-      className="w-full bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-gray-200 hover:-translate-y-1 transition-all duration-300 text-left group"
+      className={`w-full bg-white rounded-2xl border overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left group ${
+        selected ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-100 hover:border-gray-200'
+      }`}
     >
       <div className="relative h-36 bg-gray-100 overflow-hidden">
+        {selected && (
+          <div className="absolute top-2.5 left-2.5 z-10">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-600 text-white text-[11px] font-semibold shadow-sm">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              선택됨
+            </span>
+          </div>
+        )}
         {item.firstimage ? (
           <img
             src={item.firstimage}
