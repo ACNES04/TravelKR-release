@@ -411,7 +411,7 @@ export default function PlanPage() {
           <div className="w-full lg:w-1/2 h-[40vh] lg:h-full relative animate-fade-in">
             <KakaoMap
               center={mapCenter}
-              markers={markers}
+              markers={selectedPlaces.length > 0 ? selectedPlaces : markers}
               routePath={routePath}
               routeOrderMap={routeOrderMap}
               onMarkerClick={handleMarkerClick}
