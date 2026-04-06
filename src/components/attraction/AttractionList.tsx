@@ -10,6 +10,16 @@ import { LandmarkIcon } from '@/components/icons/Icons';
 
 const ATTRACTION_PAGE_SIZE = 1000;
 
+// TourAPI cat3 코드 → 맛집 세부 분류
+const FOOD_CAT3_LABELS: Record<string, string> = {
+  A05020100: '한식',
+  A05020200: '서양식',
+  A05020300: '일식',
+  A05020400: '중식',
+  A05020700: '이색음식점',
+  A05020900: '카페/찻집',
+};
+
 interface AttractionListProps {
   areaCode: string;
   sigunguCode?: string;
@@ -32,16 +42,41 @@ export default function AttractionList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [foodCat, setFoodCat] = useState<string | null>(null);
+
+  // 탭 변경 시 음식 세부 필터 초기화
+  function handleTabChange(tab: ContentTypeId) {
+    setContentTypeId(tab);
+    setFoodCat(null);
+    setSearchQuery('');
+  }
 
   const filteredItems = useMemo(() => {
+    let result = items;
+    // 맛집 세부 분류 필터
+    if (contentTypeId === '39' && foodCat) {
+      result = result.filter((item) => item.cat3 === foodCat);
+    }
+    // 텍스트 검색 필터
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        (item.addr1 && item.addr1.toLowerCase().includes(q))
-    );
-  }, [items, searchQuery]);
+    if (q) {
+      result = result.filter(
+        (item) =>
+          item.title.toLowerCase().includes(q) ||
+          (item.addr1 && item.addr1.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [items, searchQuery, foodCat, contentTypeId]);
+
+  // 현재 아이템에 실제로 존재하는 맛집 세부 분류만 추출
+  const availableFoodCats = useMemo(() => {
+    if (contentTypeId !== '39') return [];
+    const codes = Array.from(new Set(items.map((i) => i.cat3).filter(Boolean))) as string[];
+    return codes
+      .filter((c) => FOOD_CAT3_LABELS[c])
+      .sort((a, b) => (FOOD_CAT3_LABELS[a] ?? '').localeCompare(FOOD_CAT3_LABELS[b] ?? ''));
+  }, [items, contentTypeId]);
 
   async function fetchItems() {
     setLoading(true);
@@ -133,7 +168,38 @@ export default function AttractionList({
         </div>
       )}
 
-      <CategoryTabs selected={contentTypeId} onChange={setContentTypeId} />
+      <CategoryTabs selected={contentTypeId} onChange={handleTabChange} />
+
+      {/* 맛집 세부 분류 칩 */}
+      {contentTypeId === '39' && !loading && availableFoodCats.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          <button
+            type="button"
+            onClick={() => setFoodCat(null)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+              foodCat === null
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-700'
+            }`}
+          >
+            전체
+          </button>
+          {availableFoodCats.map((code) => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => setFoodCat(foodCat === code ? null : code)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+                foodCat === code
+                  ? 'bg-green-600 text-white border-green-600'
+                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-700'
+              }`}
+            >
+              {FOOD_CAT3_LABELS[code]}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mt-4">
         {loading && (
