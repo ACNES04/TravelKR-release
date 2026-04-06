@@ -1,124 +1,138 @@
-// 기상청 날씨 API 클라이언트
+// OpenWeatherMap 날씨 API 클라이언트
 
 import { getCached, setCache, createCacheKey } from '../cache';
-import { latLngToGrid } from '../utils/gridConverter';
-import { formatDateYMD, getBaseTime, formatDateYMDHM, getDaysFromToday, getDateRange } from '../utils/dateFormat';
-import type { WeatherAPIResponse, WeatherForecastItem, DailyWeather, MidTermWeatherResponse, MidTermForecast } from '../../types/weather';
-import { SKY_LABELS, PTY_LABELS } from '../../types/weather';
-import { getAreaByCode } from '../utils/areaCode';
+import { getDateRange } from '../utils/dateFormat';
+import type { DailyWeather } from '../../types/weather';
 
-const SHORT_FORECAST_URL = 'https://apis.data.go.kr/1360000/VilageFcstInfoService2/getVilageFcst';
-const MID_TEMP_URL = 'https://apis.data.go.kr/1360000/MidFcstInfoService/getMidTa';
+const OPENWEATHER_FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
 
-/** 단기예보 조회 (3일) */
-async function getShortForecast(lat: number, lng: number, baseDate: string): Promise<WeatherForecastItem[]> {
-  const cacheKey = createCacheKey('weather-short', lat.toFixed(2), lng.toFixed(2), baseDate);
-  const cached = getCached<WeatherForecastItem[]>(cacheKey);
-  if (cached) return cached;
-
-  const { nx, ny } = latLngToGrid(lat, lng);
-  const now = new Date();
-  const baseTime = getBaseTime(now);
-
-  const params = new URLSearchParams({
-    serviceKey: process.env.WEATHER_API_KEY || '',
-    numOfRows: '1000',
-    pageNo: '1',
-    dataType: 'JSON',
-    base_date: baseDate || formatDateYMD(now),
-    base_time: baseTime,
-    nx: String(nx),
-    ny: String(ny),
-  });
-
-  const res = await fetch(`${SHORT_FORECAST_URL}?${params.toString()}`);
-  if (!res.ok) throw new Error(`Weather API error: ${res.status}`);
-
-  const json: WeatherAPIResponse = await res.json();
-  if (json.response.header.resultCode !== '00') {
-    throw new Error(`Weather API error: ${json.response.header.resultMsg}`);
-  }
-
-  const items = json.response.body?.items?.item || [];
-  setCache(cacheKey, items);
-  return items;
+interface OpenWeatherEntry {
+  dt: number;
+  dt_txt: string;
+  main: {
+    temp_min: number;
+    temp_max: number;
+  };
+  pop: number;
+  weather: Array<{
+    id: number;
+    main: string;
+    description: string;
+  }>;
 }
 
-/** 중기기온예보 조회 (3~10일) */
-async function getMidTermTemp(regId: string): Promise<MidTermForecast | null> {
-  const cacheKey = createCacheKey('weather-mid', regId);
-  const cached = getCached<MidTermForecast>(cacheKey);
-  if (cached) return cached;
-
-  const now = new Date();
-  const tmFc = formatDateYMDHM(now);
-
-  const params = new URLSearchParams({
-    serviceKey: process.env.WEATHER_API_KEY || '',
-    dataType: 'JSON',
-    regId,
-    tmFc,
-  });
-
-  const res = await fetch(`${MID_TEMP_URL}?${params.toString()}`);
-  if (!res.ok) throw new Error(`Mid-term weather API error: ${res.status}`);
-
-  const json: MidTermWeatherResponse = await res.json();
-  if (json.response.header.resultCode !== '00') {
-    throw new Error(`Mid-term weather API error: ${json.response.header.resultMsg}`);
-  }
-
-  const items = json.response.body?.items?.item;
-  const forecast = items?.[0] || null;
-  if (forecast) setCache(cacheKey, forecast);
-  return forecast;
+interface OpenWeatherForecastResponse {
+  list: OpenWeatherEntry[];
 }
 
-/** 단기예보 데이터를 일별 날씨로 파싱 */
-function parseShortForecast(items: WeatherForecastItem[]): Map<string, DailyWeather> {
-  const dailyMap = new Map<string, DailyWeather>();
+function mapWeatherToDaily(entry: OpenWeatherEntry): Pick<DailyWeather, 'sky' | 'skyLabel' | 'pty' | 'ptyLabel'> {
+  const weather = entry.weather[0];
+  const weatherId = weather?.id ?? 800;
+  const weatherMain = weather?.main ?? 'Clear';
 
-  for (const item of items) {
-    const date = item.fcstDate;
-    if (!dailyMap.has(date)) {
-      dailyMap.set(date, {
-        date,
-        sky: '1',
-        skyLabel: '맑음',
-        tempMin: null,
-        tempMax: null,
-        pop: 0,
-        pty: '0',
-        ptyLabel: '없음',
+  if (weatherMain === 'Snow') {
+    return { sky: '4', skyLabel: '눈', pty: '3', ptyLabel: '눈' };
+  }
+
+  if (weatherMain === 'Rain' || weatherMain === 'Drizzle' || weatherMain === 'Thunderstorm') {
+    if (weatherId === 611 || weatherId === 612 || weatherId === 615 || weatherId === 616) {
+      return { sky: '4', skyLabel: '비/눈', pty: '2', ptyLabel: '비/눈' };
+    }
+    return { sky: '4', skyLabel: '비', pty: '1', ptyLabel: '비' };
+  }
+
+  if (weatherId === 800) {
+    return { sky: '1', skyLabel: '맑음', pty: '0', ptyLabel: '없음' };
+  }
+
+  if (weatherId >= 801 && weatherId <= 803) {
+    return { sky: '3', skyLabel: '구름많음', pty: '0', ptyLabel: '없음' };
+  }
+
+  return { sky: '4', skyLabel: '흐림', pty: '0', ptyLabel: '없음' };
+}
+
+async function getOpenWeatherForecast(lat: number, lng: number): Promise<OpenWeatherEntry[]> {
+  const cacheKey = createCacheKey('weather-owm', lat.toFixed(2), lng.toFixed(2));
+  const cached = getCached<OpenWeatherEntry[]>(cacheKey);
+  if (cached) return cached;
+
+  const apiKey = process.env.OPENWEATHER_API_KEY || '';
+  if (!apiKey) {
+    throw new Error('OPENWEATHER_API_KEY is not configured');
+  }
+
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lng),
+    appid: apiKey,
+    units: 'metric',
+    lang: 'kr',
+  });
+
+  const res = await fetch(`${OPENWEATHER_FORECAST_URL}?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`OpenWeather API error: ${res.status}`);
+  }
+
+  const json: OpenWeatherForecastResponse = await res.json();
+  const list = json.list || [];
+  setCache(cacheKey, list);
+  return list;
+}
+
+function parseForecastByDate(list: OpenWeatherEntry[]): Map<string, DailyWeather> {
+  type DailyAccumulator = {
+    tempMin: number;
+    tempMax: number;
+    pop: number;
+    representative: OpenWeatherEntry;
+    repDistanceToNoon: number;
+  };
+
+  const accMap = new Map<string, DailyAccumulator>();
+
+  for (const item of list) {
+    const datePart = item.dt_txt.split(' ')[0] || '';
+    const dateKey = datePart.replace(/-/g, '');
+    const hour = Number((item.dt_txt.split(' ')[1] || '00:00:00').split(':')[0]);
+    const distanceToNoon = Math.abs(12 - hour);
+
+    if (!accMap.has(dateKey)) {
+      accMap.set(dateKey, {
+        tempMin: item.main.temp_min,
+        tempMax: item.main.temp_max,
+        pop: Math.round(item.pop * 100),
+        representative: item,
+        repDistanceToNoon: distanceToNoon,
       });
+      continue;
     }
 
-    const daily = dailyMap.get(date)!;
+    const acc = accMap.get(dateKey)!;
+    acc.tempMin = Math.min(acc.tempMin, item.main.temp_min);
+    acc.tempMax = Math.max(acc.tempMax, item.main.temp_max);
+    acc.pop = Math.max(acc.pop, Math.round(item.pop * 100));
 
-    switch (item.category) {
-      case 'TMN':
-        daily.tempMin = parseFloat(item.fcstValue);
-        break;
-      case 'TMX':
-        daily.tempMax = parseFloat(item.fcstValue);
-        break;
-      case 'SKY':
-        // 대표 하늘상태로 12시 기준
-        if (item.fcstTime === '1200') {
-          daily.sky = item.fcstValue;
-          daily.skyLabel = SKY_LABELS[item.fcstValue] || item.fcstValue;
-        }
-        break;
-      case 'POP':
-        daily.pop = Math.max(daily.pop, parseInt(item.fcstValue));
-        break;
-      case 'PTY':
-        if (item.fcstValue !== '0' && item.fcstTime === '1200') {
-          daily.pty = item.fcstValue;
-          daily.ptyLabel = PTY_LABELS[item.fcstValue] || item.fcstValue;
-        }
-        break;
+    if (distanceToNoon < acc.repDistanceToNoon) {
+      acc.representative = item;
+      acc.repDistanceToNoon = distanceToNoon;
     }
+  }
+
+  const dailyMap = new Map<string, DailyWeather>();
+  for (const [date, acc] of accMap) {
+    const mapped = mapWeatherToDaily(acc.representative);
+    dailyMap.set(date, {
+      date,
+      sky: mapped.sky,
+      skyLabel: mapped.skyLabel,
+      tempMin: Number(acc.tempMin.toFixed(1)),
+      tempMax: Number(acc.tempMax.toFixed(1)),
+      pop: acc.pop,
+      pty: mapped.pty,
+      ptyLabel: mapped.ptyLabel,
+    });
   }
 
   return dailyMap;
@@ -128,64 +142,22 @@ function parseShortForecast(items: WeatherForecastItem[]): Map<string, DailyWeat
 export async function getWeatherForPeriod(
   lat: number,
   lng: number,
-  areaCode: string,
+  _areaCode: string,
   startDate: string,
   endDate: string
 ): Promise<DailyWeather[]> {
-  const dates = getDateRange(startDate, endDate);
-  const results: DailyWeather[] = [];
-  const area = getAreaByCode(areaCode);
-
-  // 단기예보: 오늘부터 3일
   try {
-    const now = new Date();
-    const baseDate = formatDateYMD(now);
-    const shortItems = await getShortForecast(lat, lng, baseDate);
-    const shortDaily = parseShortForecast(shortItems);
+    const list = await getOpenWeatherForecast(lat, lng);
+    const dailyMap = parseForecastByDate(list);
+    const dates = getDateRange(startDate, endDate);
 
-    for (const date of dates) {
-      const daysFromToday = getDaysFromToday(date);
+    return dates.map((date) => {
+      const dateKey = date.replace(/-/g, '');
+      const daily = dailyMap.get(dateKey);
+      if (daily) return daily;
 
-      if (daysFromToday <= 3 && daysFromToday >= 0) {
-        const ymd = date.replace(/-/g, '');
-        const daily = shortDaily.get(ymd);
-        if (daily) {
-          results.push(daily);
-          continue;
-        }
-      }
-
-      // 중기예보: 4~10일
-      if (daysFromToday >= 4 && daysFromToday <= 10 && area) {
-        try {
-          const midForecast = await getMidTermTemp(area.midTaRegId);
-          if (midForecast) {
-            const dayOffset = daysFromToday;
-            const minKey = `taMin${dayOffset}` as keyof MidTermForecast;
-            const maxKey = `taMax${dayOffset}` as keyof MidTermForecast;
-            const tempMin = midForecast[minKey] as number | undefined;
-            const tempMax = midForecast[maxKey] as number | undefined;
-
-            results.push({
-              date: date.replace(/-/g, ''),
-              sky: '0',
-              skyLabel: '중기예보',
-              tempMin: tempMin ?? null,
-              tempMax: tempMax ?? null,
-              pop: 0,
-              pty: '0',
-              ptyLabel: '없음',
-            });
-            continue;
-          }
-        } catch (midErr) {
-          console.error('중기예보 실패:', midErr);
-        }
-      }
-
-      // 예보 범위 초과 (10일 이상)
-      results.push({
-        date: date.replace(/-/g, ''),
+      return {
+        date: dateKey,
         sky: '-1',
         skyLabel: '예보 범위 초과',
         tempMin: null,
@@ -193,12 +165,10 @@ export async function getWeatherForPeriod(
         pop: 0,
         pty: '0',
         ptyLabel: '없음',
-      });
-    }
+      };
+    });
   } catch (err) {
-    console.error('Weather API 전체 실패:', err);
+    console.error('OpenWeather API 전체 실패:', err);
     return [];
   }
-
-  return results;
 }
