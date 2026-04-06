@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Script from 'next/script';
 import type { PlaceMarker } from '@/types';
 import type { KakaoMapInstance, KakaoLatLng } from '@/types/kakao';
 
@@ -31,11 +30,20 @@ export default function KakaoMap({
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
-  // 이미 SDK가 로드된 경우(페이지 이동/재마운트) 즉시 반영
+  // 이미 SDK가 로드된 경우(페이지 이동/재마운트) 즉시 반영, 아니면 polling으로 대기
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.kakao?.maps) {
+    if (typeof window === 'undefined') return;
+    if (window.kakao?.maps) {
       setSdkLoaded(true);
+      return;
     }
+    const timer = setInterval(() => {
+      if (window.kakao?.maps) {
+        setSdkLoaded(true);
+        clearInterval(timer);
+      }
+    }, 100);
+    return () => clearInterval(timer);
   }, []);
 
   const MARKER_COLORS: Record<string, string> = {
@@ -176,18 +184,11 @@ export default function KakaoMap({
   }, [mapReady, center.lat, center.lng]);
 
   return (
-    <>
-      <Script
-        src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_KEY}&libraries=services&autoload=false`}
-        strategy="afterInteractive"
-        onLoad={() => setSdkLoaded(true)}
-      />
-      <div
-        ref={mapContainerRef}
-        className={`w-full h-full min-h-[300px] rounded-xl overflow-hidden ${className}`}
-        role="application"
-        aria-label="카카오맵 여행지 지도"
-      />
-    </>
+    <div
+      ref={mapContainerRef}
+      className={`w-full h-full min-h-[300px] rounded-xl overflow-hidden ${className}`}
+      role="application"
+      aria-label="카카오맵 여행지 지도"
+    />
   );
 }
