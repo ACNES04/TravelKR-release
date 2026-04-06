@@ -118,6 +118,12 @@ export default function PlanPage() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [routeOrderMap, setRouteOrderMap] = useState<Record<string, number>>({});
+  const [routeSections, setRouteSections] = useState<{
+    distance: number;
+    duration: number;
+    guides: { guidance: string; name: string; type: number; distance: number }[];
+  }[]>([]);
+  const [routeStopNames, setRouteStopNames] = useState<string[]>([]);
   const [activePanel, setActivePanel] = useState<PanelTab>('weather');
 
   // 수집된 데이터 (AI 추천용)
@@ -321,6 +327,17 @@ export default function PlanPage() {
           tollFare: route.summary.fare?.toll || 0,
           taxiFare: route.summary.fare?.taxi || 0,
         });
+        // 구간별 상세 안내 저장
+        const sections = (route.sections ?? []).map((sec: {
+          distance: number; duration: number;
+          guides: { guidance: string; name: string; type: number; distance: number }[];
+        }) => ({
+          distance: sec.distance,
+          duration: sec.duration,
+          guides: (sec.guides ?? []).filter((g: { type: number }) => g.type !== 0), // 직진 제외
+        }));
+        setRouteSections(sections);
+        setRouteStopNames(routeMarkers.map((m) => m.title));
       } else {
         setRouteError('선택한 장소 간 경로를 찾을 수 없습니다.');
         setRouteOrderMap({});
@@ -338,6 +355,8 @@ export default function PlanPage() {
   function resetRoute() {
     setRoutePath([]);
     setRouteInfo(null);
+    setRouteSections([]);
+    setRouteStopNames([]);
     setRouteError(null);
     setRouteOrderMap({});
   }
@@ -421,7 +440,12 @@ export default function PlanPage() {
             {(routeInfo || routeLoading || !!routeError) && (
               <div className="absolute bottom-4 left-4 right-4 animate-slide-in-bottom space-y-2">
                 {(routeInfo || routeLoading) && (
-                  <RoutePolyline routeInfo={routeInfo} loading={routeLoading} />
+                  <RoutePolyline
+                    routeInfo={routeInfo}
+                    loading={routeLoading}
+                    sections={routeSections}
+                    stopNames={routeStopNames}
+                  />
                 )}
                 {routeError && (
                   <div className="px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
