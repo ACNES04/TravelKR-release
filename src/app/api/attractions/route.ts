@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const contentTypeId = searchParams.get('contentTypeId');
     const sigunguCode = searchParams.get('sigunguCode') || undefined;
     const pageNo = parseInt(searchParams.get('pageNo') || '1');
-    const numOfRows = parseInt(searchParams.get('numOfRows') || '50');
+    const numOfRows = parseInt(searchParams.get('numOfRows') || '1000');
 
     if (!areaCode) {
       return NextResponse.json({ error: '지역코드(areaCode)가 필요합니다.' }, { status: 400 });

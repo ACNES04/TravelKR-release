@@ -59,7 +59,7 @@ export async function searchByArea(
   contentTypeId: ContentTypeId,
   sigunguCode?: string,
   pageNo = 1,
-  numOfRows = 50
+  numOfRows = 1000
 ): Promise<AttractionItem[]> {
   const params: Record<string, string> = {
     areaCode,
@@ -77,7 +77,7 @@ export async function searchByLocation(
   mapY: number,
   contentTypeId?: ContentTypeId,
   radius = 5000,
-  numOfRows = 50
+  numOfRows = 1000
 ): Promise<AttractionItem[]> {
   const params: Record<string, string> = {
     mapX: String(mapX),
