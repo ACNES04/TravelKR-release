@@ -116,6 +116,8 @@ export default function PlanPage() {
     taxiFare: number;
   } | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [routeOrderMap, setRouteOrderMap] = useState<Record<string, number>>({});
   const [activePanel, setActivePanel] = useState<PanelTab>('weather');
 
   // 수집된 데이터 (AI 추천용)
@@ -199,10 +201,10 @@ export default function PlanPage() {
         }
 
         const [attrRes, cultureRes, festivalRes, foodRes] = await Promise.all([
-          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=12&numOfRows=15`),
-          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=14&numOfRows=15`),
-          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=15&numOfRows=15`),
-          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=39&numOfRows=15`),
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=12&numOfRows=1000`),
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=14&numOfRows=1000`),
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=15&numOfRows=1000`),
+          fetch(`/api/attractions?areaCode=${areaCode}&contentTypeId=39&numOfRows=1000`),
         ]);
 
         const attrItems: AttractionItem[] = attrRes.ok ? (await attrRes.json()).items || [] : [];
@@ -267,10 +269,17 @@ export default function PlanPage() {
       : markers.filter((m) => ['attraction', 'food', 'festival', 'culture'].includes(m.category)).slice(0, 8);
 
     const optimized = optimizeMarkerOrderByDistance(routeSource, { lat, lng });
-    const routeMarkers = optimized.slice(0, 5);
+    const routeMarkers = optimized.slice(0, 7); // 카카오 최대: 출발+5 경유지+도착 = 7
     if (routeMarkers.length < 2) return;
 
     setRouteLoading(true);
+    setRouteError(null);
+
+    // 경로 순서맵 설정 (지도 번호 표시용)
+    const orderMap: Record<string, number> = {};
+    routeMarkers.forEach((m, i) => { orderMap[m.id] = i; });
+    setRouteOrderMap(orderMap);
+
     try {
       const origin = routeMarkers[0];
       const dest = routeMarkers[routeMarkers.length - 1];
@@ -288,33 +297,49 @@ export default function PlanPage() {
       }
 
       const res = await fetch(`/api/directions?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        const route = data.routes?.[0];
-        if (route && route.result_code === 0) {
-          // 경로 좌표 추출
-          const path: { lat: number; lng: number }[] = [];
-          route.sections?.forEach((section: { roads: { vertexes: number[] }[] }) => {
-            section.roads?.forEach((road: { vertexes: number[] }) => {
-              for (let i = 0; i < road.vertexes.length; i += 2) {
-                path.push({ lat: road.vertexes[i + 1], lng: road.vertexes[i] });
-              }
-            });
+      if (!res.ok) {
+        setRouteError('경로 계산에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        setRouteOrderMap({});
+        return;
+      }
+      const data = await res.json();
+      const route = data.routes?.[0];
+      if (route && route.result_code === 0) {
+        // 경로 좌표 추출
+        const path: { lat: number; lng: number }[] = [];
+        route.sections?.forEach((section: { roads: { vertexes: number[] }[] }) => {
+          section.roads?.forEach((road: { vertexes: number[] }) => {
+            for (let i = 0; i < road.vertexes.length; i += 2) {
+              path.push({ lat: road.vertexes[i + 1], lng: road.vertexes[i] });
+            }
           });
-          setRoutePath(path);
-          setRouteInfo({
-            distance: route.summary.distance,
-            duration: route.summary.duration,
-            tollFare: route.summary.fare?.toll || 0,
-            taxiFare: route.summary.fare?.taxi || 0,
-          });
-        }
+        });
+        setRoutePath(path);
+        setRouteInfo({
+          distance: route.summary.distance,
+          duration: route.summary.duration,
+          tollFare: route.summary.fare?.toll || 0,
+          taxiFare: route.summary.fare?.taxi || 0,
+        });
+      } else {
+        setRouteError('선택한 장소 간 경로를 찾을 수 없습니다.');
+        setRouteOrderMap({});
       }
     } catch (err) {
       console.error('Route calculation error:', err);
+      setRouteError('경로 계산 중 오류가 발생했습니다.');
+      setRouteOrderMap({});
     } finally {
       setRouteLoading(false);
     }
+  }
+
+  // 경로 초기화
+  function resetRoute() {
+    setRoutePath([]);
+    setRouteInfo(null);
+    setRouteError(null);
+    setRouteOrderMap({});
   }
 
   // 공유 링크 복사
@@ -354,6 +379,14 @@ export default function PlanPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {(routeInfo || !!routeError) && (
+              <button
+                onClick={resetRoute}
+                className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                경로 초기화
+              </button>
+            )}
             <button
               onClick={calculateRoute}
               disabled={routeLoading || (selectedPlaces.length > 0 ? selectedPlaces.length < 2 : markers.length < 2)}
@@ -380,13 +413,21 @@ export default function PlanPage() {
               center={mapCenter}
               markers={markers}
               routePath={routePath}
+              routeOrderMap={routeOrderMap}
               onMarkerClick={handleMarkerClick}
               className="w-full h-full"
             />
             {/* 경로 정보 오버레이 */}
-            {(routeInfo || routeLoading) && (
-              <div className="absolute bottom-4 left-4 right-4 animate-slide-in-bottom">
-                <RoutePolyline routeInfo={routeInfo} loading={routeLoading} />
+            {(routeInfo || routeLoading || !!routeError) && (
+              <div className="absolute bottom-4 left-4 right-4 animate-slide-in-bottom space-y-2">
+                {(routeInfo || routeLoading) && (
+                  <RoutePolyline routeInfo={routeInfo} loading={routeLoading} />
+                )}
+                {routeError && (
+                  <div className="px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                    ⚠️ {routeError}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -500,7 +541,15 @@ export default function PlanPage() {
               </div>
 
               {/* 모바일 경로 계산 버튼 */}
-              <div className="lg:hidden">
+              <div className="lg:hidden space-y-2">
+                {(routeInfo || !!routeError) && (
+                  <button
+                    onClick={resetRoute}
+                    className="w-full py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors text-sm"
+                  >
+                    경로 초기화
+                  </button>
+                )}
                 <button
                   onClick={calculateRoute}
                   disabled={routeLoading || (selectedPlaces.length > 0 ? selectedPlaces.length < 2 : markers.length < 2)}

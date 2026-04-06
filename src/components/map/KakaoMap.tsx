@@ -10,6 +10,7 @@ interface KakaoMapProps {
   level?: number;
   markers?: PlaceMarker[];
   routePath?: { lat: number; lng: number }[];
+  routeOrderMap?: Record<string, number>;
   onMarkerClick?: (marker: PlaceMarker) => void;
   className?: string;
 }
@@ -19,6 +20,7 @@ export default function KakaoMap({
   level = 8,
   markers = [],
   routePath = [],
+  routeOrderMap = {},
   onMarkerClick,
   className = '',
 }: KakaoMapProps) {
@@ -28,6 +30,7 @@ export default function KakaoMap({
   const polylineRef = useRef<unknown>(null);
   const infoWindowRef = useRef<unknown>(null);
   const [sdkLoaded, setSdkLoaded] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   const MARKER_COLORS: Record<string, string> = {
     stay: '#EF4444',
@@ -48,24 +51,27 @@ export default function KakaoMap({
   const PIN_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
   const PHONE_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
 
-  // SDK 로드 후 지도 초기화
+  // SDK 로드 후 지도 초기화 (한 번만 실행)
   useEffect(() => {
     if (!sdkLoaded || !mapContainerRef.current) return;
 
     window.kakao.maps.load(() => {
+      if (mapRef.current) return; // 이미 초기화됨
       const map = new window.kakao.maps.Map(mapContainerRef.current!, {
         center: new window.kakao.maps.LatLng(center.lat, center.lng),
         level,
       });
       mapRef.current = map;
+      setMapReady(true);
     });
-  }, [sdkLoaded, center.lat, center.lng, level]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sdkLoaded]);
 
-  // 마커 업데이트
+  // 마커 업데이트 (CustomOverlay 사용 — 색상 라벨 + 경로 번호 뱃지)
   useEffect(() => {
-    if (!mapRef.current || !window.kakao?.maps) return;
+    if (!mapReady || !mapRef.current) return;
 
-    // 기존 마커 제거
+    // 기존 오버레이 제거
     markersRef.current.forEach((m: unknown) => {
       (m as { setMap: (map: null) => void }).setMap(null);
     });
@@ -73,87 +79,69 @@ export default function KakaoMap({
 
     if (markers.length === 0) return;
 
+    // CustomOverlay는 타입 정의에 없으므로 캐스팅
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const CustomOverlayClass = (window.kakao.maps as any).CustomOverlay as new (opts: {
+      position: unknown; content: HTMLElement; map: unknown; yAnchor: number; zIndex: number;
+    }) => { setMap: (m: unknown) => void };
+
     const bounds = new window.kakao.maps.LatLngBounds();
 
     markers.forEach((markerData) => {
+      if (!markerData.lat || !markerData.lng) return;
       const position = new window.kakao.maps.LatLng(markerData.lat, markerData.lng);
       bounds.extend(position);
 
-      // 커스텀 마커 이미지 생성
       const color = MARKER_COLORS[markerData.category] || '#6B7280';
-      const svg = MARKER_SVG[markerData.category] || PIN_SVG;
+      const title = markerData.title.length > 9 ? markerData.title.slice(0, 9) + '…' : markerData.title;
+      const order = routeOrderMap[markerData.id];
+      const hasOrder = order !== undefined;
+      const bgColor = hasOrder ? '#F97316' : color;
 
-      const markerContent = document.createElement('div');
-      markerContent.innerHTML = `
-        <div style="
-          background: ${color};
-          color: white;
-          padding: 4px 8px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-          white-space: nowrap;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          cursor: pointer;
-        ">
-          ${svg} ${markerData.title.length > 8 ? markerData.title.slice(0, 8) + '...' : markerData.title}
-        </div>
-      `;
+      const el = document.createElement('div');
+      el.style.cssText = 'cursor:pointer;text-align:center;';
 
-      // 기본 마커 사용 (커스텀 오버레이 대신)
-      const marker = new window.kakao.maps.Marker({
+      const bubble = document.createElement('div');
+      bubble.style.cssText = `display:inline-flex;align-items:center;gap:4px;background:${bgColor};color:white;padding:3px 8px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.35);border:2px solid rgba(255,255,255,0.8);user-select:none;`;
+
+      if (hasOrder) {
+        const numBadge = document.createElement('span');
+        numBadge.style.cssText = 'background:white;color:#F97316;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex-shrink:0;';
+        numBadge.textContent = String(order + 1);
+        bubble.appendChild(numBadge);
+      }
+
+      const textSpan = document.createElement('span');
+      textSpan.textContent = title;
+      bubble.appendChild(textSpan);
+
+      const arrow = document.createElement('div');
+      arrow.style.cssText = `width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid ${bgColor};margin:0 auto;`;
+
+      el.appendChild(bubble);
+      el.appendChild(arrow);
+      el.addEventListener('click', () => onMarkerClick?.(markerData));
+
+      const overlay = new CustomOverlayClass({
         position,
+        content: el,
         map: mapRef.current!,
-        title: markerData.title,
+        yAnchor: 1,
+        zIndex: hasOrder ? 5 : 3,
       });
 
-      // 인포윈도우 생성
-      const infoContent = `
-        <div style="padding: 12px; min-width: 200px; max-width: 280px; font-family: sans-serif;">
-          <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #1a1a1a;">
-            ${svg} ${markerData.title}
-          </div>
-          ${markerData.image ? `<img src="${markerData.image}" alt="${markerData.title}" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />` : ''}
-          ${markerData.address ? `<div style="font-size:12px;color:#666;margin-bottom:4px;display:flex;align-items:center;gap:4px;">${PIN_SVG} ${markerData.address}</div>` : ''}
-          ${markerData.tel ? `<div style="font-size:12px;color:#666;display:flex;align-items:center;gap:4px;">${PHONE_SVG} ${markerData.tel}</div>` : ''}
-        </div>
-      `;
-
-      const infoWindow = new window.kakao.maps.InfoWindow({
-        content: infoContent,
-        removable: true,
-      });
-
-      window.kakao.maps.event.addListener(marker, 'click', () => {
-        // 기존 인포윈도우 닫기
-        if (infoWindowRef.current) {
-          (infoWindowRef.current as { close: () => void }).close();
-        }
-        infoWindow.open(mapRef.current!, marker);
-        infoWindowRef.current = infoWindow;
-
-        if (onMarkerClick) {
-          onMarkerClick(markerData);
-        }
-      });
-
-      markersRef.current.push(marker);
+      markersRef.current.push(overlay);
     });
 
-    // 마커가 모두 보이도록 맵 범위 조정
     if (markers.length > 1) {
       mapRef.current.setBounds(bounds);
     }
-  }, [markers, onMarkerClick]);
+  }, [mapReady, markers, onMarkerClick, routeOrderMap]);
 
   // 경로 폴리라인 업데이트
   useEffect(() => {
-    if (!mapRef.current || !window.kakao?.maps) return;
+    if (!mapReady || !mapRef.current) return;
 
-    // 기존 폴리라인 제거
     if (polylineRef.current) {
       (polylineRef.current as { setMap: (map: null) => void }).setMap(null);
     }
@@ -164,22 +152,22 @@ export default function KakaoMap({
 
     const polyline = new window.kakao.maps.Polyline({
       path,
-      strokeWeight: 4,
-      strokeColor: '#3B82F6',
-      strokeOpacity: 0.8,
+      strokeWeight: 6,
+      strokeColor: '#F97316',
+      strokeOpacity: 0.9,
       strokeStyle: 'solid',
       map: mapRef.current,
     });
 
     polylineRef.current = polyline;
-  }, [routePath]);
+  }, [mapReady, routePath]);
 
   // 센터 변경 시 이동
   useEffect(() => {
-    if (!mapRef.current || !window.kakao?.maps) return;
+    if (!mapReady || !mapRef.current) return;
     const newCenter = new window.kakao.maps.LatLng(center.lat, center.lng);
     mapRef.current.panTo(newCenter as KakaoLatLng);
-  }, [center.lat, center.lng]);
+  }, [mapReady, center.lat, center.lng]);
 
   return (
     <>
