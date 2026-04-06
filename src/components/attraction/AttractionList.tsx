@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { AttractionItem, ContentTypeId } from '@/types/tourapi';
 import CategoryTabs from './CategoryTabs';
 import AttractionCard from './AttractionCard';
@@ -31,6 +31,17 @@ export default function AttractionList({
   const [items, setItems] = useState<AttractionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        item.title.toLowerCase().includes(q) ||
+        (item.addr1 && item.addr1.toLowerCase().includes(q))
+    );
+  }, [items, searchQuery]);
 
   async function fetchItems() {
     setLoading(true);
@@ -63,13 +74,47 @@ export default function AttractionList({
       <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
         <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600"><LandmarkIcon className="w-4 h-4" /></div>
         관광지 / 맛집 / 축제 / 문화시설
-        {!loading && <span className="text-sm font-normal text-gray-400">({items.length})</span>}
+        {!loading && (
+          <span className="text-sm font-normal text-gray-400">
+            {searchQuery ? `${filteredItems.length} / ${items.length}` : items.length}
+          </span>
+        )}
         {selectedIds.length > 0 && (
           <span className="text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
             선택 {selectedIds.length}
           </span>
         )}
       </h3>
+
+      {/* 검색 입력 */}
+      <div className="relative mb-3">
+        <svg
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" />
+        </svg>
+        <input
+          type="text"
+          placeholder="이름 또는 주소로 검색..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-9 pr-9 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-colors"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="검색어 지우기"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       <p className="text-xs text-gray-500 mb-3">카드를 클릭하면 선택/해제되며, 선택 목록 기준으로 경로와 AI 일정이 최적화됩니다.</p>
 
@@ -102,7 +147,7 @@ export default function AttractionList({
         {error && <ErrorFallback message={error} onRetry={fetchItems} />}
         {!loading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <AttractionCard
                 key={item.contentid}
                 item={item}
@@ -112,9 +157,9 @@ export default function AttractionList({
                 }}
               />
             ))}
-            {items.length === 0 && (
+            {filteredItems.length === 0 && (
               <div className="col-span-2 text-center py-8 text-gray-400 text-sm">
-                데이터가 없습니다
+                {searchQuery ? `'${searchQuery}'에 해당하는 결과가 없습니다` : '데이터가 없습니다'}
               </div>
             )}
           </div>
