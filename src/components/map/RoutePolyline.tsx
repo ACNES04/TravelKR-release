@@ -168,6 +168,8 @@ export default function RoutePolyline({ routeInfo, loading, sections = [], stopN
               )}
             </div>
           ))}
+        </div>
+      )}
     </div>
   );
 }
