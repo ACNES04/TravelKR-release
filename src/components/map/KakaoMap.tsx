@@ -28,9 +28,15 @@ export default function KakaoMap({
   const mapRef = useRef<KakaoMapInstance | null>(null);
   const markersRef = useRef<unknown[]>([]);
   const polylineRef = useRef<unknown>(null);
-  const infoWindowRef = useRef<unknown>(null);
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+
+  // 이미 SDK가 로드된 경우(페이지 이동/재마운트) 즉시 반영
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.kakao?.maps) {
+      setSdkLoaded(true);
+    }
+  }, []);
 
   const MARKER_COLORS: Record<string, string> = {
     stay: '#EF4444',
