@@ -8,6 +8,8 @@ import { SkeletonList } from '@/components/common/Skeleton';
 import ErrorFallback from '@/components/common/ErrorFallback';
 import { LandmarkIcon } from '@/components/icons/Icons';
 
+const ATTRACTION_PAGE_SIZE = 50;
+
 interface AttractionListProps {
   areaCode: string;
   sigunguCode?: string;
@@ -37,7 +39,7 @@ export default function AttractionList({
       const params = new URLSearchParams({
         areaCode,
         contentTypeId,
-        numOfRows: '20',
+        numOfRows: String(ATTRACTION_PAGE_SIZE),
       });
       if (sigunguCode) params.set('sigunguCode', sigunguCode);
 
