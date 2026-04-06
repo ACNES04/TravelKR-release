@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-
 interface RouteInfo {
   distance: number;
   duration: number;
@@ -27,6 +25,8 @@ interface RoutePolylineProps {
   loading?: boolean;
   sections?: RouteSection[];
   stopNames?: string[];
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 }
 
 function GuideIcon({ type }: { type: number }) {
@@ -68,8 +68,7 @@ function fmtTime(s: number) {
   return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
 }
 
-export default function RoutePolyline({ routeInfo, loading, sections = [], stopNames = [] }: RoutePolylineProps) {
-  const [expanded, setExpanded] = useState(false);
+export default function RoutePolyline({ routeInfo, loading, sections = [], stopNames = [], expanded = false, onToggleExpanded }: RoutePolylineProps) {
 
   if (loading) {
     return (
@@ -107,7 +106,7 @@ export default function RoutePolyline({ routeInfo, loading, sections = [], stopN
           {sections.length > 0 && (
             <button
               type="button"
-              onClick={() => setExpanded((v) => !v)}
+              onClick={() => onToggleExpanded?.()}
               className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
             >
               {expanded ? '접기' : '상세 경로'}

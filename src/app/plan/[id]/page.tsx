@@ -124,6 +124,7 @@ export default function PlanPage() {
     guides: { guidance: string; name: string; type: number; distance: number }[];
   }[]>([]);
   const [routeStopNames, setRouteStopNames] = useState<string[]>([]);
+  const [routeExpanded, setRouteExpanded] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelTab>('weather');
 
   // 수집된 데이터 (AI 추천용)
@@ -357,6 +358,7 @@ export default function PlanPage() {
     setRouteInfo(null);
     setRouteSections([]);
     setRouteStopNames([]);
+    setRouteExpanded(false);
     setRouteError(null);
     setRouteOrderMap({});
   }
@@ -445,6 +447,8 @@ export default function PlanPage() {
                     loading={routeLoading}
                     sections={routeSections}
                     stopNames={routeStopNames}
+                    expanded={routeExpanded}
+                    onToggleExpanded={() => setRouteExpanded((v) => !v)}
                   />
                 )}
                 {routeError && (
