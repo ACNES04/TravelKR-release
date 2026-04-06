@@ -100,7 +100,6 @@ export default function AttractionList({
                 selected={selectedIds.includes(item.contentid)}
                 onClick={() => {
                   onToggleSelect?.(item);
-                  onItemClick?.(item);
                 }}
               />
             ))}
