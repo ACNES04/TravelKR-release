@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import type { AttractionItem, ContentTypeId } from '@/types/tourapi';
+import type { AttractionFeedback } from '@/lib/feedbackStorage';
 import CategoryTabs from './CategoryTabs';
 import AttractionCard from './AttractionCard';
+import { getAllFeedback } from '@/lib/feedbackStorage';
 import { SkeletonList } from '@/components/common/Skeleton';
 import ErrorFallback from '@/components/common/ErrorFallback';
 import { LandmarkIcon } from '@/components/icons/Icons';
@@ -27,6 +29,7 @@ interface AttractionListProps {
   selectedIds?: string[];
   onToggleSelect?: (item: AttractionItem) => void;
   onClearSelected?: () => void;
+  feedbackVersion?: number;
 }
 
 export default function AttractionList({
@@ -39,6 +42,7 @@ export default function AttractionList({
 }: AttractionListProps) {
   const [contentTypeId, setContentTypeId] = useState<ContentTypeId>('12');
   const [items, setItems] = useState<AttractionItem[]>([]);
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, AttractionFeedback>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,6 +103,10 @@ export default function AttractionList({
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    setFeedbackMap(getAllFeedback());
+  }, [feedbackVersion]);
 
   useEffect(() => {
     if (areaCode) fetchItems();
@@ -221,6 +229,8 @@ export default function AttractionList({
                 onClick={() => {
                   onToggleSelect?.(item);
                 }}
+                likes={feedbackMap[item.contentid]?.likes ?? 0}
+                commentsCount={feedbackMap[item.contentid]?.comments?.length ?? 0}
               />
             ))}
             {filteredItems.length === 0 && (

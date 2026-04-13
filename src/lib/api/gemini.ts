@@ -68,6 +68,7 @@ export interface GeminiRequest {
   attractions: { title: string; address: string; category: string }[];
   foods: { title: string; address: string }[];
   weather: { date: string; skyLabel: string; tempMin: number | null; tempMax: number | null; pop: number }[];
+  topLikedAttractions?: { title: string; likes: number; comments: number }[];
 }
 
 function buildPrompt(data: GeminiRequest): string {
@@ -86,6 +87,12 @@ function buildPrompt(data: GeminiRequest): string {
   const foodInfo = data.foods
     .map((f) => `- ${f.title} (${f.address})`)
     .join('\n');
+
+  const likedInfo = data.topLikedAttractions?.length
+    ? data.topLikedAttractions
+        .map((a) => `- ${a.title} (좋아요 ${a.likes}개, 댓글 ${a.comments}개)`)
+        .join('\n')
+    : '';
 
   return `${SYSTEM_PROMPT}
 
@@ -107,6 +114,9 @@ ${attractionInfo || '관광지 정보가 없습니다.'}
 
 맛집:
 ${foodInfo || '맛집 정보가 없습니다.'}
+${likedInfo ? `
+좋아요가 많은 인기 장소:
+${likedInfo}` : ''}
 
 위 데이터를 기반으로 최적의 여행 일정을 만들어주세요.`;
 }

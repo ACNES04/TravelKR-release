@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from 'next/script';
 import "./globals.css";
+import { AuthProvider } from '@/components/auth/AuthProvider';
 
 export const metadata: Metadata = {
   title: "국내 여행 플래너 | AI 추천 여행 일정",
@@ -19,7 +20,9 @@ export default function RootLayout({
       className="h-full antialiased"
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col bg-white text-gray-900">
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
         <Script
           src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_KEY}&libraries=services&autoload=false`}
           strategy="afterInteractive"

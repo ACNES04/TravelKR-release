@@ -26,14 +26,17 @@ interface SearchFormProps {
 export default function SearchForm({ onSelect, value, onChange }: SearchFormProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
-    if (!value || value.length < 2) {
+    const query = value.trim();
+    if (!query || query.length < 2) {
       setResults([]);
       setIsOpen(false);
+      setSearchError(null);
       return;
     }
 
@@ -41,15 +44,25 @@ export default function SearchForm({ onSelect, value, onChange }: SearchFormProp
 
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
+      setSearchError(null);
       try {
-        const res = await fetch(`/api/search?query=${encodeURIComponent(value)}`);
+        const res = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
         if (res.ok) {
-          const data = await res.json();
           setResults(data.documents || []);
           setIsOpen(true);
+          if (!data.documents || data.documents.length === 0) {
+            setSearchError('검색 결과가 없습니다. 다른 키워드로 시도해 보세요.');
+          }
+        } else {
+          setResults([]);
+          setIsOpen(true);
+          setSearchError(data?.error || '검색 중 오류가 발생했습니다.');
         }
-      } catch {
+      } catch (err) {
         setResults([]);
+        setIsOpen(true);
+        setSearchError(err instanceof Error ? err.message : '검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       } finally {
         setLoading(false);
       }
@@ -141,9 +154,9 @@ export default function SearchForm({ onSelect, value, onChange }: SearchFormProp
         </ul>
       )}
 
-      {isOpen && results.length === 0 && !loading && value.length >= 2 && (
+      {isOpen && results.length === 0 && !loading && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-center text-gray-500 text-sm">
-          검색 결과가 없습니다
+          {searchError || '검색 결과가 없습니다'}
         </div>
       )}
     </div>

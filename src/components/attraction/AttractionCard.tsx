@@ -7,9 +7,11 @@ interface AttractionCardProps {
   item: AttractionItem;
   onClick?: (item: AttractionItem) => void;
   selected?: boolean;
+  likes?: number;
+  commentsCount?: number;
 }
 
-export default function AttractionCard({ item, onClick, selected = false }: AttractionCardProps) {
+export default function AttractionCard({ item, onClick, selected = false, likes = 0, commentsCount = 0 }: AttractionCardProps) {
   return (
     <button
       onClick={() => onClick?.(item)}
@@ -50,6 +52,10 @@ export default function AttractionCard({ item, onClick, selected = false }: Attr
         {item.tel && (
           <p className="text-xs text-gray-400 mt-1 truncate flex items-center gap-1"><PhoneIcon className="w-3 h-3 flex-shrink-0" /> {item.tel}</p>
         )}
+        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <span>❤️ 좋아요 {likes}</span>
+          <span>💬 댓글 {commentsCount}</span>
+        </div>
       </div>
     </button>
   );

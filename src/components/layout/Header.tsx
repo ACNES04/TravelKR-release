@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { MapIcon, SuitcaseIcon, SparkleIcon, LandmarkIcon, RestaurantIcon, HotelIcon, FestivalIcon, WeatherIcon } from '@/components/icons/Icons';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -32,12 +34,39 @@ export default function Header() {
           {/* 우측 액션 */}
           <div className="flex items-center gap-2">
             <Link
-              href="/"
+              href="/#plan-form"
               className="hidden sm:flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-full hover:bg-blue-700 transition-colors shadow-sm"
             >
               <SparkleIcon className="w-4 h-4" />
               여행 만들기
             </Link>
+            {user ? (
+              <div className="hidden sm:flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">{user.name}님</span>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                >
+                  로그아웃
+                </button>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-2">
+                <Link
+                  href="/auth/login"
+                  className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                >
+                  로그인
+                </Link>
+                <Link
+                  href="/auth/register"
+                  className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
+                >
+                  회원가입
+                </Link>
+              </div>
+            )}
             {/* 모바일 메뉴 버튼 */}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -63,6 +92,32 @@ export default function Header() {
             <MobileNavItem href="/" label="여행 계획" icon={<MapIcon className="w-5 h-5" />} desc="AI가 추천하는 맞춤 여행 일정" />
             <MobileNavItem href="#features" label="서비스 소개" icon={<LandmarkIcon className="w-5 h-5" />} desc="다양한 여행 정보를 한눈에" />
             <MobileNavItem href="#how" label="이용 방법" icon={<SparkleIcon className="w-5 h-5" />} desc="간단한 3단계로 여행 계획 완성" />
+            <div className="mt-2 border-t border-gray-100 pt-3">
+              {user ? (
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition"
+                >
+                  로그아웃
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <Link
+                    href="/auth/login"
+                    className="block rounded-2xl border border-gray-200 bg-white px-4 py-3 text-center text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    로그인
+                  </Link>
+                  <Link
+                    href="/auth/register"
+                    className="block rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700 transition"
+                  >
+                    회원가입
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

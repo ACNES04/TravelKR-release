@@ -15,12 +15,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '검색어(query)가 필요합니다.' }, { status: 400 });
     }
 
+    if (!process.env.KAKAO_REST_API_KEY) {
+      console.error('Search API error: missing KAKAO_REST_API_KEY');
+      return NextResponse.json(
+        { error: '서버 설정 오류: Kakao REST API 키가 등록되지 않았습니다.' },
+        { status: 500 }
+      );
+    }
+
     const result = await searchPlaces(query, x, y, radius, page);
     return NextResponse.json(result);
   } catch (error) {
     console.error('Search API error:', error);
+    const message = error instanceof Error ? error.message : '장소 검색 중 오류가 발생했습니다.';
     return NextResponse.json(
-      { error: '장소 검색 중 오류가 발생했습니다.' },
+      { error: `장소 검색 중 오류가 발생했습니다. ${message}` },
       { status: 500 }
     );
   }

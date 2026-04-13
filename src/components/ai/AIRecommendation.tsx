@@ -3,6 +3,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { RobotIcon, SparkleIcon, CalendarIcon } from '@/components/icons/Icons';
 
+interface TopLikedAttraction {
+  title: string;
+  likes: number;
+  comments: number;
+}
+
 interface AIRecommendationProps {
   destination: string;
   startDate: string;
@@ -14,6 +20,7 @@ interface AIRecommendationProps {
   attractions: { title: string; address: string; category: string }[];
   foods: { title: string; address: string }[];
   weather: { date: string; skyLabel: string; tempMin: number | null; tempMax: number | null; pop: number }[];
+  topLikedAttractions?: TopLikedAttraction[];
 }
 
 export default function AIRecommendation({
@@ -27,6 +34,7 @@ export default function AIRecommendation({
   attractions,
   foods,
   weather,
+  topLikedAttractions,
 }: AIRecommendationProps) {
   const [recommendation, setRecommendation] = useState('');
   const [loading, setLoading] = useState(false);
@@ -53,6 +61,7 @@ export default function AIRecommendation({
           attractions,
           foods,
           weather,
+          topLikedAttractions,
         }),
       });
 
@@ -316,6 +325,28 @@ export default function AIRecommendation({
           )}
         </button>
       </div>
+
+      {topLikedAttractions && topLikedAttractions.length > 0 && (
+        <div className="mb-4 rounded-3xl border border-blue-100 bg-blue-50 p-4">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div>
+              <p className="text-sm font-semibold text-blue-700">인기 좋아요 관광지</p>
+              <p className="text-xs text-blue-600/80">좋아요가 많은 관광지를 AI 추천에도 참고합니다.</p>
+            </div>
+            <span className="text-xs text-blue-700 font-semibold">TOP {topLikedAttractions.length}</span>
+          </div>
+          <div className="space-y-2">
+            {topLikedAttractions.map((item, index) => (
+              <div key={`${item.title}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 border border-blue-100">
+                <div className="text-sm text-gray-900 font-semibold truncate">{item.title}</div>
+                <div className="text-xs text-gray-500 min-w-[90px] text-right">
+                  좋아요 {item.likes} · 댓글 {item.comments}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">

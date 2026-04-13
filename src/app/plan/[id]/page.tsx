@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import WeatherPanel from '@/components/weather/WeatherPanel';
 import StayList from '@/components/stay/StayList';
@@ -10,7 +10,10 @@ import AIRecommendation from '@/components/ai/AIRecommendation';
 import RoutePolyline from '@/components/map/RoutePolyline';
 import InfoWindowModal from '@/components/map/InfoWindow';
 import { SuitcaseIcon, MapIcon, ClipboardIcon, WeatherIcon, HotelIcon, LandmarkIcon, RobotIcon } from '@/components/icons/Icons';
-import type { PlaceMarker } from '@/types';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { getFeedback, toggleLike, addComment, getTopLikedAttractions } from '@/lib/feedbackStorage';
+import { savePlan, isPlanSaved } from '@/lib/planStorage';
+import type { PlaceMarker, SavedPlan } from '@/types';
 import type { StayItem, AttractionItem } from '@/types/tourapi';
 import { formatDateKoreanISO, getDaysBetween } from '@/lib/utils/dateFormat';
 import { CONTENT_TYPE_LABELS } from '@/types/tourapi';
@@ -138,6 +141,13 @@ export default function PlanPage() {
   const [collectedWeather, setCollectedWeather] = useState<{ date: string; skyLabel: string; tempMin: number | null; tempMax: number | null; pop: number }[]>([]);
 
   const dayCount = startDate && endDate ? getDaysBetween(startDate, endDate) : 0;
+  const router = useRouter();
+  const { user } = useAuth();
+  const [planSaved, setPlanSaved] = useState(false);
+  const [feedbackVersion, setFeedbackVersion] = useState(0);
+
+  const currentMarkerFeedback = selectedMarker ? getFeedback(selectedMarker.id, selectedMarker.title) : { likes: 0, likedBy: [], comments: [] };
+  const topLikedAttractions = getTopLikedAttractions(5);
 
   // 숙박시설 클릭 핸들러
   const handleStayClick = useCallback((stay: StayItem) => {
@@ -306,6 +316,14 @@ export default function PlanPage() {
     collectData();
   }, [areaCode, lat, lng, startDate, endDate]);
 
+  useEffect(() => {
+    if (!user) {
+      setPlanSaved(false);
+      return;
+    }
+    setPlanSaved(isPlanSaved(user.email, planId));
+  }, [user, planId]);
+
   // 최적 루트 계산
   async function calculateRoute() {
     const routeSource = selectedPlaces.length > 0
@@ -408,6 +426,52 @@ export default function PlanPage() {
     setRouteOrderMap({});
   }
 
+  // 여행 계획 저장
+  function handleSavePlan() {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
+    const planData: SavedPlan = {
+      id: planId,
+      destination,
+      areaCode,
+      lat,
+      lng,
+      startDate,
+      endDate,
+      adults,
+      children,
+      styles,
+      planningStage: null,
+      savedAt: new Date().toISOString(),
+    };
+
+    savePlan(user.email, planData);
+    setPlanSaved(true);
+    alert('여행 계획이 저장되었습니다.');
+  }
+
+  function handleToggleLike() {
+    if (!user || !selectedMarker) {
+      router.push('/auth/login');
+      return;
+    }
+    toggleLike(selectedMarker.id, user.email, selectedMarker.title);
+    setFeedbackVersion((prev) => prev + 1);
+  }
+
+  function handleAddComment(message: string) {
+    if (!user || !selectedMarker) {
+      router.push('/auth/login');
+      return;
+    }
+    if (!message.trim()) return;
+    addComment(selectedMarker.id, user.name, user.email, message, selectedMarker.title);
+    setFeedbackVersion((prev) => prev + 1);
+  }
+
   // 공유 링크 복사
   function copyShareLink() {
     const url = window.location.href;
@@ -453,6 +517,16 @@ export default function PlanPage() {
                 경로 초기화
               </button>
             )}
+            <button
+              onClick={handleSavePlan}
+              className={`hidden md:flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition ${
+                planSaved
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {planSaved ? '저장됨' : '저장하기'}
+            </button>
             <button
               onClick={calculateRoute}
               disabled={routeLoading || (selectedPlaces.length > 0 ? selectedPlaces.length < 2 : markers.length < 2)}
@@ -606,6 +680,7 @@ export default function PlanPage() {
                   selectedIds={selectedPlaces.map((p) => p.id)}
                   onToggleSelect={toggleSelectedPlace}
                   onClearSelected={clearSelectedPlaces}
+                  feedbackVersion={feedbackVersion}
                 />
               </div>
 
@@ -643,6 +718,7 @@ export default function PlanPage() {
                       : collectedFoods
                   }
                   weather={collectedWeather}
+                  topLikedAttractions={topLikedAttractions}
                 />
               </div>
 
@@ -656,6 +732,16 @@ export default function PlanPage() {
                     경로 초기화
                   </button>
                 )}
+                <button
+                  onClick={handleSavePlan}
+                  className={`w-full py-3 rounded-xl font-medium transition ${
+                    planSaved
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
+                >
+                  {planSaved ? '저장됨' : '여행 계획 저장'}
+                </button>
                 <button
                   onClick={calculateRoute}
                   disabled={routeLoading || (selectedPlaces.length > 0 ? selectedPlaces.length < 2 : markers.length < 2)}
@@ -675,6 +761,12 @@ export default function PlanPage() {
           <InfoWindowModal
             place={selectedMarker}
             onClose={() => setSelectedMarker(null)}
+            likes={currentMarkerFeedback.likes}
+            liked={user ? currentMarkerFeedback.likedBy.includes(user.email) : false}
+            comments={currentMarkerFeedback.comments}
+            user={user}
+            onToggleLike={handleToggleLike}
+            onAddComment={handleAddComment}
           />
         </div>
       )}

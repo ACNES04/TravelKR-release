@@ -95,6 +95,21 @@ export interface SearchParams {
   lng: number;
 }
 
+export interface SavedPlan {
+  id: string;
+  destination: string;
+  areaCode: string;
+  lat: number;
+  lng: number;
+  startDate: string;
+  endDate: string;
+  adults: number;
+  children: number;
+  styles: TravelStyle[];
+  planningStage?: PlanningStage | null;
+  savedAt: string;
+}
+
 export interface AIRecommendationRequest {
   planId: string;
   destination: string;
